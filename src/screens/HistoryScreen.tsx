@@ -3,7 +3,7 @@ import { ResultView, SaveImageButton } from '../components/ResultView'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { se } from '../lib/audio'
 import { formatDate } from '../lib/resultImage'
-import { recordScore } from '../lib/shiritori'
+import { formatTime, isTimeAttack, recordFinalTime, recordMode, recordScore } from '../lib/shiritori'
 import { loadHistory } from '../lib/storage'
 import type { GameRecord } from '../lib/types'
 
@@ -58,13 +58,25 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
                 <span className="history-info">
                   <span className="history-date">{formatDate(record.playedAt)}</span>
                   <span className="history-sub">
-                    {record.settings.players}人・{record.settings.minutes}分・
-                    {record.entries.length}まい
+                    {record.settings.players}人・
+                    {isTimeAttack(recordMode(record))
+                      ? 'タイムアタック'
+                      : `${record.settings.minutes}分`}
+                    ・{record.entries.length}まい
                   </span>
                 </span>
                 <span className="history-score">
-                  {recordScore(record)}
-                  <small>れんさ</small>
+                  {isTimeAttack(recordMode(record)) ? (
+                    <>
+                      {formatTime(recordFinalTime(record))}
+                      <small>タイム</small>
+                    </>
+                  ) : (
+                    <>
+                      {recordScore(record)}
+                      <small>れんさ</small>
+                    </>
+                  )}
                 </span>
               </button>
             </li>

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   headChar,
+  isNomissCleared,
   isValidWord,
   judgeLinks,
   maxChain,
   pickStartChar,
+  recordFinalTime,
+  recordPenalty,
   recordScore,
   START_CHARS,
   tailChar,
@@ -93,6 +96,44 @@ describe('recordScore', () => {
   })
   it('対局時の濁点設定で判定する', () => {
     expect(recordScore({ ...base, strictDakuten: false })).toBe(3)
+  })
+})
+
+describe('タイムアタック', () => {
+  const base: GameRecord = {
+    id: 'a',
+    playedAt: 0,
+    settings: { players: 3, minutes: 3, showAll: true, strictDakuten: true },
+    strictDakuten: true,
+    startChar: 'ら',
+    entries: [
+      { player: 1, word: 'らっぱ', image: '' },
+      { player: 2, word: 'はさみ', image: '' },
+      { player: 3, word: 'みかん', image: '' },
+    ],
+    overrides: {},
+    elapsedSec: 100,
+  }
+  it('ペナルティ制はつながっていない数×30秒を足す', () => {
+    // らっぱ→はさみは濁点区別ありで×、はさみ→みかんは○
+    const r = { ...base, playMode: 'time-penalty' as const }
+    expect(recordPenalty(r)).toBe(30)
+    expect(recordFinalTime(r)).toBe(130)
+  })
+  it('手動修正がタイムに反映される', () => {
+    const fixed = { ...base, playMode: 'time-penalty' as const, overrides: { 1: true } }
+    expect(recordFinalTime(fixed)).toBe(100)
+    const broken = { ...base, playMode: 'time-penalty' as const, overrides: { 0: false } }
+    expect(recordFinalTime(broken)).toBe(160)
+  })
+  it('ノーミス制とスコアチャレンジにはペナルティがない', () => {
+    expect(recordFinalTime({ ...base, playMode: 'time-nomiss' })).toBe(100)
+    expect(recordPenalty(base)).toBe(0)
+  })
+  it('ノーミス制はれんさが人数に届いたら達成', () => {
+    expect(isNomissCleared('ら', ['らっぱ', 'ぱんだ', 'だるま'], true, 3)).toBe(true)
+    expect(isNomissCleared('ら', ['らっぱ', 'はさみ', 'みかん'], true, 3)).toBe(false)
+    expect(isNomissCleared('ら', ['らっぱ', 'ぱんだ', 'だるま'], true, 4)).toBe(false)
   })
 })
 

@@ -3,23 +3,26 @@ import { Button } from '../components/Button'
 import { DrawingCanvas } from '../components/DrawingCanvas'
 import type { DrawingCanvasHandle } from '../components/DrawingCanvas'
 import { se } from '../lib/audio'
-import { isValidWord, pickStartChar } from '../lib/shiritori'
-import type { Entry, GameSettings } from '../lib/types'
+import {
+  formatTime,
+  isNomissCleared,
+  isTimeAttack,
+  isValidWord,
+  pickStartChar,
+} from '../lib/shiritori'
+import type { Entry, GameSettings, PlayMode } from '../lib/types'
 
 interface Props {
+  playMode: PlayMode
   settings: GameSettings
-  onFinish: (startChar: string, entries: Entry[]) => void
+  /** elapsedSec はタイムアタックのときだけ渡される */
+  onFinish: (startChar: string, entries: Entry[], elapsedSec?: number) => void
   onQuit: () => void
 }
 
 /** カタカナで入力されたぶんはひらがなに直す */
 function toHiragana(text: string): string {
   return text.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
-}
-
-function formatTime(seconds: number): string {
-  const s = Math.max(0, seconds)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
 function useWakeLock() {
@@ -48,13 +51,16 @@ function useWakeLock() {
   }, [])
 }
 
-export function GameScreen({ settings, onFinish, onQuit }: Props) {
+export function GameScreen({ playMode, settings, onFinish, onQuit }: Props) {
+  const timeAttack = isTimeAttack(playMode)
   const total = settings.minutes * 60
   const [startChar] = useState(() => pickStartChar())
   const [entries, setEntries] = useState<Entry[]>([])
   const [phase, setPhase] = useState<'handoff' | 'draw'>('handoff')
   const [endAt, setEndAt] = useState<number | null>(null)
+  const [startAt, setStartAt] = useState<number | null>(null)
   const [remaining, setRemaining] = useState(total)
+  const [elapsed, setElapsed] = useState(0)
   const [word, setWord] = useState('')
   const [hasInk, setHasInk] = useState(false)
   const [zoom, setZoom] = useState<string | null>(null)
@@ -66,6 +72,15 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
   const finished = useRef(false)
 
   useWakeLock()
+
+  // タイムアタックの経過時間も開始時刻から計算する
+  useEffect(() => {
+    if (startAt === null) return
+    const update = () => setElapsed(Math.floor((Date.now() - startAt) / 1000))
+    update()
+    const id = setInterval(update, 200)
+    return () => clearInterval(id)
+  }, [startAt])
 
   // 残り時間は終了時刻から計算する（バックグラウンドに回ってもずれない）
   useEffect(() => {
@@ -85,8 +100,8 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
   }, [endAt, onFinish, startChar])
 
   useEffect(() => {
-    if (endAt !== null && remaining > 0 && remaining <= 10) se.tick()
-  }, [remaining, endAt])
+    if (!timeAttack && endAt !== null && remaining > 0 && remaining <= 10) se.tick()
+  }, [remaining, endAt, timeAttack])
 
   // 新しい絵が増えたら最後の絵が見える位置までスクロール
   // （縦横を切り替えたときも同じ）
@@ -108,7 +123,11 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
 
   const begin = () => {
     se.start()
-    if (endAt === null) setEndAt(Date.now() + total * 1000)
+    if (timeAttack) {
+      if (startAt === null) setStartAt(Date.now())
+    } else if (endAt === null) {
+      setEndAt(Date.now() + total * 1000)
+    }
     setPhase('draw')
   }
 
@@ -116,9 +135,26 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
     if (!wordOk || !hasInk || !canvasRef.current) return
     se.done()
     const image = canvasRef.current.toDataURL()
-    setEntries([...entries, { player, word: normalized, image }])
+    const next = [...entries, { player, word: normalized, image }]
+    setEntries(next)
     canvasRef.current.clear()
     setWord('')
+
+    const cleared =
+      playMode === 'time-penalty'
+        ? next.length >= settings.players
+        : playMode === 'time-nomiss' &&
+          isNomissCleared(
+            startChar,
+            next.map((e) => e.word),
+            settings.strictDakuten,
+            settings.players,
+          )
+    if (cleared && startAt !== null && !finished.current) {
+      finished.current = true
+      onFinish(startChar, next, Math.floor((Date.now() - startAt) / 1000))
+      return
+    }
     setPhase('handoff')
   }
 
@@ -136,8 +172,11 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
           やめる
         </Button>
         <span className="turn-chip">{player}番目の人</span>
-        <span className={`timer ${remaining <= 10 ? 'is-urgent' : ''}`} role="timer">
-          {formatTime(remaining)}
+        <span
+          className={`timer ${!timeAttack && remaining <= 10 ? 'is-urgent' : ''}`}
+          role="timer"
+        >
+          {formatTime(timeAttack ? elapsed : remaining)}
         </span>
       </header>
 
@@ -221,13 +260,18 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
       {phase === 'handoff' && (
         <div className="modal-backdrop handoff">
           <div className="modal handoff-card" role="dialog" aria-modal="true">
-            {endAt === null ? (
+            {(timeAttack ? startAt : endAt) === null ? (
               <>
                 <p className="handoff-sub">じゅんびはいい？</p>
                 <h2 className="handoff-title">{player}番目の人から！</h2>
                 <p className="modal-note">
-                  スタートを押すと制限時間（{settings.minutes}分）がうごきだします。
+                  {timeAttack
+                    ? 'スタートを押すとタイム計測がはじまります。'
+                    : `スタートを押すと制限時間（${settings.minutes}分）がうごきだします。`}
                   <br />
+                  {playMode === 'time-penalty' && `${settings.players}人ぶん描いたら終了！`}
+                  {playMode === 'time-nomiss' && `${settings.players}れんさするまで終わらないよ！`}
+                  {timeAttack && <br />}
                   描いたものは口に出しちゃダメ！
                 </p>
                 <Button color="yellow" size="lg" silent onClick={begin}>
@@ -238,7 +282,9 @@ export function GameScreen({ settings, onFinish, onQuit }: Props) {
               <>
                 <p className="handoff-sub">つぎの人にわたしてね</p>
                 <h2 className="handoff-title">{player}番目の人の番！</h2>
-                <p className="handoff-time">のこり {formatTime(remaining)}</p>
+                <p className="handoff-time">
+                  {timeAttack ? `けいか ${formatTime(elapsed)}` : `のこり ${formatTime(remaining)}`}
+                </p>
                 <Button color="yellow" size="lg" silent onClick={begin}>
                   描く！
                 </Button>

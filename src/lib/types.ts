@@ -1,3 +1,6 @@
+/** score: 制限時間内の最大れんさ / time-penalty・time-nomiss: タイムアタック */
+export type PlayMode = 'score' | 'time-penalty' | 'time-nomiss'
+
 export interface GameSettings {
   players: number
   minutes: number
@@ -25,6 +28,10 @@ export interface GameRecord {
   entries: Entry[]
   /** 手動で修正した判定。キーは絵のインデックス */
   overrides: Record<number, boolean>
+  /** 省略時は 'score'（旧バージョンの履歴） */
+  playMode?: PlayMode
+  /** タイムアタックでかかった秒数（ペナルティ前） */
+  elapsedSec?: number
 }
 
 export interface AppSettings {

@@ -1,4 +1,4 @@
-import type { GameRecord } from './types'
+import type { GameRecord, PlayMode } from './types'
 
 const SMALL_TO_LARGE: Record<string, string> = {
   ぁ: 'あ', ぃ: 'い', ぅ: 'う', ぇ: 'え', ぉ: 'お',
@@ -79,4 +79,47 @@ export function recordLinks(record: GameRecord): boolean[] {
 
 export function recordScore(record: GameRecord): number {
   return maxChain(recordLinks(record))
+}
+
+/** つながっていない絵1まいごとに足されるペナルティ（秒） */
+export const PENALTY_SEC = 30
+
+export const MODE_LABEL: Record<PlayMode, string> = {
+  score: 'スコアチャレンジ',
+  'time-penalty': 'タイムアタック（ペナルティ制）',
+  'time-nomiss': 'タイムアタック（ノーミス制）',
+}
+
+export function recordMode(record: GameRecord): PlayMode {
+  return record.playMode ?? 'score'
+}
+
+export function isTimeAttack(mode: PlayMode): boolean {
+  return mode !== 'score'
+}
+
+/** ペナルティ制のときだけ、つながっていない絵の数×30秒 */
+export function recordPenalty(record: GameRecord): number {
+  if (recordMode(record) !== 'time-penalty') return 0
+  return recordLinks(record).filter((ok) => !ok).length * PENALTY_SEC
+}
+
+/** タイムアタックの最終タイム（秒） */
+export function recordFinalTime(record: GameRecord): number {
+  return (record.elapsedSec ?? 0) + recordPenalty(record)
+}
+
+/** ノーミス制の終了判定：最大れんさが人数に届いたか */
+export function isNomissCleared(
+  startChar: string,
+  words: string[],
+  strict: boolean,
+  players: number,
+): boolean {
+  return maxChain(judgeLinks(startChar, words, strict)) >= players
+}
+
+export function formatTime(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
