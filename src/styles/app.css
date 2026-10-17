@@ -449,13 +449,17 @@ ul {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding-block: 18px;
+  padding: 18px 24px;
+  border-radius: 32px;
+  white-space: normal;
+  text-align: center;
 }
 
 .mode-desc {
   font-size: 0.8rem;
   line-height: 1.4;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 @keyframes bob {
