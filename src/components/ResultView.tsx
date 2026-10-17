@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import { se } from '../lib/audio'
 import { formatDate, saveResultImage } from '../lib/resultImage'
-import { recordLinks, recordScore } from '../lib/shiritori'
+import {
+  formatTime,
+  isTimeAttack,
+  MODE_LABEL,
+  PENALTY_SEC,
+  recordFinalTime,
+  recordLinks,
+  recordMode,
+  recordPenalty,
+  recordScore,
+} from '../lib/shiritori'
 import type { GameRecord } from '../lib/types'
 import { Button } from './Button'
 
@@ -16,18 +26,38 @@ interface Props {
 export function ResultView({ record, revealed = record.entries.length, onToggle }: Props) {
   const links = recordLinks(record)
   const done = revealed >= record.entries.length
+  const mode = recordMode(record)
+  const timeAttack = isTimeAttack(mode)
+  const penalty = recordPenalty(record)
 
   return (
     <div className="result">
       <p className="result-meta">
-        {formatDate(record.playedAt)}・{record.settings.players}人・{record.settings.minutes}分
+        {formatDate(record.playedAt)}・{record.settings.players}人
+        {timeAttack ? '' : `・${record.settings.minutes}分`}
       </p>
+      <p className="result-meta">{MODE_LABEL[mode]}</p>
 
       <div className={`score-panel ${done ? 'is-done' : ''}`}>
-        <span className="score-label">最大</span>
-        <span className="score-number">{done ? recordScore(record) : '?'}</span>
-        <span className="score-label">れんさ！</span>
+        {timeAttack ? (
+          <>
+            <span className="score-label">タイム</span>
+            <span className="score-number">{done ? formatTime(recordFinalTime(record)) : '?'}</span>
+          </>
+        ) : (
+          <>
+            <span className="score-label">最大</span>
+            <span className="score-number">{done ? recordScore(record) : '?'}</span>
+            <span className="score-label">れんさ！</span>
+          </>
+        )}
       </div>
+      {timeAttack && done && mode === 'time-penalty' && (
+        <p className="hint">
+          けいか {formatTime(record.elapsedSec ?? 0)} ＋ ペナルティ {penalty}秒（{PENALTY_SEC}
+          秒×{penalty / PENALTY_SEC}まい）
+        </p>
+      )}
 
       <p className="result-start">
         さいしょの文字 <span className="char-chip">{record.startChar}</span>

@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Button } from '../components/Button'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { Toggle } from '../components/Toggle'
-import type { GameSettings } from '../lib/types'
+import { isTimeAttack, MODE_LABEL } from '../lib/shiritori'
+import type { GameSettings, PlayMode } from '../lib/types'
 
 interface Props {
+  playMode: PlayMode
   initial: GameSettings
   onStart: (settings: GameSettings) => void
   onBack: () => void
@@ -50,12 +52,13 @@ function Stepper({ value, min, max, unit, label, onChange }: StepperProps) {
   )
 }
 
-export function SetupScreen({ initial, onStart, onBack }: Props) {
+export function SetupScreen({ playMode, initial, onStart, onBack }: Props) {
   const [settings, setSettings] = useState(initial)
 
   return (
     <div className="screen">
       <ScreenHeader title="ゲーム設定" onBack={onBack} />
+      <p className="hint">{MODE_LABEL[playMode]}</p>
 
       <div className="panel">
         <div className="field">
@@ -69,17 +72,19 @@ export function SetupScreen({ initial, onStart, onBack }: Props) {
             onChange={(players) => setSettings({ ...settings, players })}
           />
         </div>
-        <div className="field">
-          <span className="field-label">制限時間</span>
-          <Stepper
-            label="制限時間"
-            value={settings.minutes}
-            min={1}
-            max={10}
-            unit="分"
-            onChange={(minutes) => setSettings({ ...settings, minutes })}
-          />
-        </div>
+        {!isTimeAttack(playMode) && (
+          <div className="field">
+            <span className="field-label">制限時間</span>
+            <Stepper
+              label="制限時間"
+              value={settings.minutes}
+              min={1}
+              max={10}
+              unit="分"
+              onChange={(minutes) => setSettings({ ...settings, minutes })}
+            />
+          </div>
+        )}
         <div className="field">
           <span className="field-label">
             前の人より前の絵も見える

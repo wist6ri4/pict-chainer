@@ -436,6 +436,28 @@ ul {
   width: min(100%, 320px);
 }
 
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(100%, 360px);
+  align-self: center;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-block: 18px;
+}
+
+.mode-desc {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
 @keyframes bob {
   0%,
   100% {

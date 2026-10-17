@@ -1,4 +1,13 @@
-import { recordLinks, recordScore } from './shiritori'
+import {
+  formatTime,
+  isTimeAttack,
+  MODE_LABEL,
+  recordFinalTime,
+  recordLinks,
+  recordMode,
+  recordPenalty,
+  recordScore,
+} from './shiritori'
 import type { GameRecord } from './types'
 
 const FONT = '"M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", system-ui, sans-serif'
@@ -65,13 +74,17 @@ function fitText(c: CanvasRenderingContext2D, text: string, maxWidth: number): s
 
 export async function renderResultImage(record: GameRecord): Promise<Blob> {
   const links = recordLinks(record)
-  const score = recordScore(record)
+  const mode = recordMode(record)
+  const timeAttack = isTimeAttack(mode)
+  const score = timeAttack ? formatTime(recordFinalTime(record)) : String(recordScore(record))
   const rows = Math.max(1, Math.ceil(record.entries.length / COLS))
   const H = HEADER_H + rows * (CARD_H + GAP) + PAD + 40
 
   // 使う文字のフォントを先に読み込む（unicode-rangeで分割されているため）
   const allText =
-    'Pict Chainer最大れんさ！さいしょの文字「」人分まだ絵がありません0123456789/:○×' +
+    'Pict Chainerタイム最大れんさ！さいしょの文字「」人分まだ絵がありません0123456789/:○×' +
+    Object.values(MODE_LABEL).join('') +
+    'けいかペナルティ秒＋' +
     record.startChar +
     record.entries.map((e) => e.word).join('')
   try {
@@ -108,7 +121,9 @@ export async function renderResultImage(record: GameRecord): Promise<Blob> {
   c.font = `800 30px ${FONT}`
   c.fillStyle = '#ffffff'
   c.fillText(
-    `${formatDate(record.playedAt)}　${record.settings.players}人　${record.settings.minutes}分`,
+    timeAttack
+      ? `${formatDate(record.playedAt)}　${record.settings.players}人　${MODE_LABEL[mode]}`
+      : `${formatDate(record.playedAt)}　${record.settings.players}人　${record.settings.minutes}分`,
     W / 2,
     172,
   )
@@ -121,10 +136,10 @@ export async function renderResultImage(record: GameRecord): Promise<Blob> {
   c.strokeStyle = NAVY
   c.stroke()
   c.font = `800 44px ${FONT}`
-  const label1 = '最大 '
-  const label2 = ' れんさ！'
+  const label1 = timeAttack ? 'タイム ' : '最大 '
+  const label2 = timeAttack ? '' : ' れんさ！'
   c.font = `800 96px ${FONT}`
-  const numW = c.measureText(String(score)).width
+  const numW = c.measureText(score).width
   c.font = `800 44px ${FONT}`
   const w1 = c.measureText(label1).width
   const w2 = c.measureText(label2).width
@@ -134,7 +149,7 @@ export async function renderResultImage(record: GameRecord): Promise<Blob> {
   c.fillText(label1, x, 284)
   x += w1
   c.font = `800 96px ${FONT}`
-  outlinedText(c, String(score), x, 280, '#ff4fa3', NAVY, 12)
+  outlinedText(c, score, x, 280, '#ff4fa3', NAVY, 12)
   x += numW
   c.font = `800 44px ${FONT}`
   c.fillStyle = NAVY
@@ -143,7 +158,12 @@ export async function renderResultImage(record: GameRecord): Promise<Blob> {
   c.textAlign = 'center'
   c.font = `800 34px ${FONT}`
   c.fillStyle = '#ffffff'
-  c.fillText(`さいしょの文字「${record.startChar}」`, W / 2, 388)
+  const penalty = recordPenalty(record)
+  const sub =
+    mode === 'time-penalty'
+      ? `さいしょの文字「${record.startChar}」　けいか ${formatTime(record.elapsedSec ?? 0)} ＋ ペナルティ ${penalty}秒`
+      : `さいしょの文字「${record.startChar}」`
+  c.fillText(sub, W / 2, 388)
 
   if (record.entries.length === 0) {
     c.font = `800 40px ${FONT}`
